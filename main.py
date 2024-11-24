@@ -1,6 +1,7 @@
 import csv
 from neo4j import GraphDatabase
 import ast
+import re
 
 class PokemonGraph:
     def __init__(self, uri, user, password):
@@ -39,12 +40,23 @@ class PokemonGraph:
         pokemon_abilities=pokemon['abilities'],
         pokemon_evolutions=pokemon['evolutions'])
 
-    # Insere todos os Pokémons do CSV no banco de dados
     def insert_pokemons(self, pokemons):
         with self.driver.session() as session:
             for pokemon in pokemons:
                 print(f"Inserindo Pokémon: {pokemon['name']} (ID: {pokemon['id']})")
                 session.execute_write(self.insert_pokemon, pokemon)
+
+def clean_weight(weight):
+    match = re.search(r"(\d+(\.\d+)?)", weight)
+    return float(match.group(0)) if match else 0
+
+def clean_height(height):
+    match = re.search(r"(\d+(\.\d+)?)", height)
+    return float(match.group(0)) if match else 0
+
+def clean_type_list(type_list):
+    valid_types = ['Grass', 'Poison', 'Bug', 'Flying', 'Normal', 'Ice', 'Fire', 'Water', 'Electric', 'Psychic']
+    return [type_name for type_name in type_list if type_name in valid_types]
 
 def processar_lista(campo):
     return [item.strip() for item in campo.split(',') if item.strip()]
@@ -62,7 +74,9 @@ def ler_csv_para_lista(nome_arquivo):
         print("Cabeçalhos encontrados no CSV:", reader.fieldnames)
         for row in reader:
             try:
-                row['type_list'] = processar_lista(row['type_list'])
+                row['weight_kg'] = clean_weight(row['weight_kg'])
+                row['height_cm'] = clean_height(row['height_cm'])
+                row['type_list'] = clean_type_list(processar_lista(row['type_list']))
                 row['abilities'] = processar_lista_dicionarios(row['abilities'])
                 row['evolutions'] = processar_lista_dicionarios(row['evolutions'])
                 pokemons.append(row)
@@ -70,7 +84,6 @@ def ler_csv_para_lista(nome_arquivo):
                 print(f"Erro ao processar linha: {row}. Detalhes do erro: {e}")
     return pokemons
 
-# Configuração da conexão
 uri = "bolt+s://974b89f1.databases.neo4j.io:7687"
 username = "neo4j"
 password = "YdF041GNIPORIxDDS9z12_mUQwXC_DBxQ7jcqx1banY"
@@ -79,7 +92,6 @@ try:
     graph = PokemonGraph(uri, username, password)
     print("Conexão com o Neo4j estabelecida com sucesso.")
 
-    # Carrega os dados do CSV e insere no banco
     pokemons = ler_csv_para_lista('pokemons.csv')
     graph.insert_pokemons(pokemons)
 
